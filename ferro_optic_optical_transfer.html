@@ -1,0 +1,1858 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" data-i18n-static="zh-Hant" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>FERRO-OPTIC // Optical Data Link — Project Ferrofy 光學噴泉碼無網傳輸</title>
+  <meta name="description" content="Send a file or text between two air-gapped devices with nothing but a screen and a camera. Fountain-coded animated QR codes powered by Project Ferrofy aesthetics.">
+  <meta name="theme-color" content="#05070B">
+
+  <!-- Open Graph Metadata modeled after Decimen & Project Ferrofy -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="FERRO-OPTIC // PROJECT FERROFY">
+  <meta property="og:title" content="FERRO-OPTIC — Transfer files with light // 光學無網傳輸">
+  <meta property="og:description" content="Fountain-coded animated QR codes, screen to camera. Zero network path, SplitMix32 PRNG + LT Peeling Decoder.">
+
+  <!-- Fonts: Space Grotesk, Inter, JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- QR Code Generator & jsQR Scanner for Real Optical Link -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            ferro: {
+              bg: '#05070B',
+              surface: '#0B0F17',
+              card: '#0E1420',
+              border: '#1E293B',
+              cyan: '#00F0FF',
+              cyanDim: 'rgba(0, 240, 255, 0.14)',
+              amber: '#F59E0B',
+              amberDim: 'rgba(245, 158, 11, 0.14)',
+              emerald: '#10B981',
+              chrome: '#E2E8F0',
+              muted: '#64748B'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ['Space Grotesk', 'Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    :root {
+      --bg-obsidian: #05070B;
+      --ferro-cyan: #00F0FF;
+      --ferro-amber: #F59E0B;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: #05070B;
+      color: #E2E8F0;
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+      min-height: 100vh;
+      position: relative;
+    }
+
+    /* Subtle Ferrofy Magnetic Dot-Matrix Grid */
+    .ferro-grid-bg {
+      background-image: 
+        radial-gradient(rgba(0, 240, 255, 0.12) 1px, transparent 1px),
+        linear-gradient(to right, rgba(30, 41, 59, 0.25) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(30, 41, 59, 0.25) 1px, transparent 1px);
+      background-size: 28px 28px, 112px 112px, 112px 112px;
+      background-position: -1px -1px;
+    }
+
+    /* Tactical HUD Corner Brackets (Project Ferrofy Signature) */
+    .hud-card {
+      position: relative;
+      background: linear-gradient(165deg, rgba(14, 20, 32, 0.92) 0%, rgba(8, 12, 20, 0.96) 100%);
+      border: 1px solid rgba(30, 41, 59, 0.85);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .hud-card:hover {
+      border-color: rgba(0, 240, 255, 0.45);
+      box-shadow: 0 20px 60px rgba(0, 240, 255, 0.07), inset 0 1px 0 rgba(0, 240, 255, 0.15);
+    }
+
+    .hud-card-amber:hover {
+      border-color: rgba(245, 158, 11, 0.5);
+      box-shadow: 0 20px 60px rgba(245, 158, 11, 0.08), inset 0 1px 0 rgba(245, 158, 11, 0.15);
+    }
+
+    .hud-corner::before,
+    .hud-corner::after {
+      content: '';
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      pointer-events: none;
+      transition: all 0.25s ease;
+    }
+
+    .hud-corner::before {
+      top: -1px;
+      left: -1px;
+      border-top: 2px solid #00F0FF;
+      border-left: 2px solid #00F0FF;
+    }
+
+    .hud-corner::after {
+      bottom: -1px;
+      right: -1px;
+      border-bottom: 2px solid #00F0FF;
+      border-right: 2px solid #00F0FF;
+    }
+
+    .hud-corner-amber::before {
+      border-top-color: #F59E0B;
+      border-left-color: #F59E0B;
+    }
+
+    .hud-corner-amber::after {
+      border-bottom-color: #F59E0B;
+      border-right-color: #F59E0B;
+    }
+
+    /* Scanline Overlay for Optical Realism */
+    .scanline-overlay {
+      background: linear-gradient(
+        to bottom,
+        transparent 50%,
+        rgba(0, 240, 255, 0.025) 51%
+      );
+      background-size: 100% 4px;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #05070B;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1E293B;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #00F0FF;
+    }
+
+    /* Crispy QR Code Canvas rendering */
+    canvas.qr-crisp {
+      image-rendering: -moz-crisp-edges;
+      image-rendering: -webkit-crisp-edges;
+      image-rendering: pixelated;
+      image-rendering: crisp-edges;
+    }
+
+    /* Dialog Backdrop */
+    dialog::backdrop {
+      background: rgba(5, 7, 11, 0.82);
+      backdrop-filter: blur(8px);
+    }
+
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 0.6; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.04); }
+    }
+    .animate-ferro-pulse {
+      animation: pulseGlow 3s infinite ease-in-out;
+    }
+  </style>
+</head>
+
+<body class="ferro-grid-bg selection:bg-ferro-cyan selection:text-black flex flex-col min-h-screen">
+
+  <!-- Interactive Ferrofluid Magnetic Field Canvas Background -->
+  <canvas id="ferro-bg-canvas" class="fixed inset-0 pointer-events-none z-0 opacity-55"></canvas>
+
+  <!-- ==================== SITE HEADER (Decimen Structure + Ferrofy HUD) ==================== -->
+  <header class="site-header sticky top-0 z-40 backdrop-blur-md bg-[#05070B]/85 border-b border-slate-800/80">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
+      
+      <!-- Brand Emblem (Inspired by Decimen + Project Ferrofy Spikes) -->
+      <a href="#home" onclick="switchMode('home'); return false;" class="brand group flex items-center gap-3 focus:outline-none">
+        <div class="relative w-10 h-10 rounded-lg bg-slate-900/90 border border-ferro-cyan/40 flex items-center justify-center shadow-[0_0_20px_rgba(0,240,255,0.18)] group-hover:border-ferro-cyan transition-all">
+          <!-- Custom SVG combining Ferrofluid magnetic spikes & Optical QR Matrix -->
+          <svg class="w-6 h-6 text-ferro-cyan transition-transform duration-300 group-hover:rotate-12" viewBox="0 0 64 64" fill="none">
+            <path d="M32 4L38 16L50 10L45 23L58 28L46 35L54 48L40 45L36 59L28 46L15 52L20 38L6 34L19 26L12 13L25 18L32 4Z" stroke="currentColor" stroke-width="2.2" fill="rgba(0, 240, 255, 0.12)"/>
+            <rect x="23" y="23" width="7" height="7" fill="currentColor"/>
+            <rect x="34" y="23" width="7" height="7" fill="currentColor"/>
+            <rect x="23" y="34" width="7" height="7" fill="currentColor"/>
+            <rect x="34" y="34" width="7" height="7" fill="#F59E0B"/>
+          </svg>
+          <span class="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-ferro-cyan animate-ping"></span>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="font-display font-bold tracking-wider text-base sm:text-lg text-white">FERRO-OPTIC</span>
+            <span class="hidden md:inline-block text-[10px] font-mono uppercase px-1.5 py-0.5 rounded bg-ferro-cyan/10 text-ferro-cyan border border-ferro-cyan/30">PROJECT FERROFY</span>
+          </div>
+          <p class="text-[11px] font-mono text-slate-400 tracking-tight" data-i18n="brand_sub">OPTICAL FOUNTAIN DATA LINK // 光學流體傳輸</p>
+        </div>
+      </a>
+
+      <!-- Mode Switcher & Controls -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <nav class="mode-nav flex items-center bg-slate-900/90 p-1 rounded-lg border border-slate-800" aria-label="Mode">
+          <button type="button" onclick="switchMode('home')" id="nav-home" class="mode-btn px-3 py-1.5 rounded-md text-xs sm:text-sm font-mono font-medium transition-all bg-ferro-cyan text-slate-950 font-semibold shadow-[0_0_15px_rgba(0,240,255,0.3)]">
+            <span data-i18n="nav_home">HOME // 主頁</span>
+          </button>
+          <button type="button" onclick="switchMode('send')" id="nav-send" class="mode-btn px-3 py-1.5 rounded-md text-xs sm:text-sm font-mono font-medium text-slate-300 hover:text-white transition-all">
+            <span data-i18n="nav_send">SEND // 發射端</span>
+          </button>
+          <button type="button" onclick="switchMode('receive')" id="nav-receive" class="mode-btn px-3 py-1.5 rounded-md text-xs sm:text-sm font-mono font-medium text-slate-300 hover:text-white transition-all">
+            <span data-i18n="nav_receive">RECEIVE // 接收端</span>
+          </button>
+        </nav>
+
+        <!-- Language Switcher -->
+        <button type="button" onclick="toggleLanguage()" id="lang-btn" class="px-2.5 py-1.5 rounded-lg bg-slate-900/90 border border-slate-700/80 hover:border-ferro-cyan text-xs font-mono text-ferro-cyan transition-all" title="Switch Language">
+          繁 / EN
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== MAIN SHELL ==================== -->
+  <main class="flex-grow relative z-10 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-10">
+
+    <!-- Top Telemetry Banner (Modeled on Decimen's locale-banner + Ferrofy System Status) -->
+    <div id="telemetry-banner" class="locale-banner mb-8 px-4 py-2.5 rounded-lg bg-slate-900/80 border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+      <div class="flex items-center gap-2.5">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-ferro-cyan font-semibold">SYS.STATUS: AIR-GAPPED READY</span>
+        <span class="text-slate-500">|</span>
+        <span class="text-slate-300" data-i18n="banner_msg">靈感源自 Decimen.app 與 Project Ferrofy 磁流體互動系統 — 支援純光學 LT 噴泉碼無網傳輸。</span>
+      </div>
+      <div class="flex items-center gap-3">
+        <button type="button" onclick="startInstantDemo()" class="text-ferro-amber hover:underline flex items-center gap-1 font-semibold">
+          <span data-i18n="banner_demo">⚡ 一鍵體驗光學噴泉碼編解碼 →</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- VIEW 1: HOME PAGE (Replicating Decimen's Landing Structure + Ferrofy)   -->
+    <!-- ======================================================================= -->
+    <div id="view-home" class="space-y-12">
+
+      <!-- HERO SECTION -->
+      <section class="hero relative py-4 sm:py-8">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-ferro-cyan/10 border border-ferro-cyan/30 text-ferro-cyan text-xs font-mono mb-4">
+          <span>PROTOCOL: LT-FOUNTAIN // SPLITMIX32 // DCF2 CONTAINER</span>
+        </div>
+        <h1 class="font-display text-4xl sm:text-6xl lg:text-7xl font-bold tracking-tight text-white leading-[1.08]">
+          <span data-i18n="hero_title_1">Transfer files</span><br>
+          <span class="bg-gradient-to-r from-ferro-cyan via-slate-100 to-ferro-amber bg-clip-text text-transparent" data-i18n="hero_title_2">with ferro-light.</span>
+        </h1>
+        <p class="hero-copy mt-5 max-w-2xl text-base sm:text-lg text-slate-300 leading-relaxed" data-i18n="hero_copy">
+          僅需透過「發射端螢幕」與「接收端相機鏡頭」，即可在兩台完全斷網（Air-Gapped）的裝置間傳送檔案或文字。採用無速率 LT 噴泉碼動態 QR 矩陣，無需配對、無需伺服器、無懼反光掉幀。
+        </p>
+
+        <!-- Live Interactive Ferrofluid Optical Telemetry Bar -->
+        <div class="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-3xl font-mono">
+          <div class="px-3.5 py-2.5 rounded-lg bg-slate-900/70 border border-slate-800/90">
+            <div class="text-[10px] text-slate-400 uppercase">MODULATION // 調變</div>
+            <div class="text-sm sm:text-base font-bold text-ferro-cyan mt-0.5">LT Fountain XOR</div>
+          </div>
+          <div class="px-3.5 py-2.5 rounded-lg bg-slate-900/70 border border-slate-800/90">
+            <div class="text-[10px] text-slate-400 uppercase">FRAME HEADER // 標頭</div>
+            <div class="text-sm sm:text-base font-bold text-white mt-0.5">22-Byte Self-Desc</div>
+          </div>
+          <div class="px-3.5 py-2.5 rounded-lg bg-slate-900/70 border border-slate-800/90">
+            <div class="text-[10px] text-slate-400 uppercase">PRNG SYNC // 同步器</div>
+            <div class="text-sm sm:text-base font-bold text-ferro-amber mt-0.5">SplitMix32 Seed</div>
+          </div>
+          <div class="px-3.5 py-2.5 rounded-lg bg-slate-900/70 border border-slate-800/90">
+            <div class="text-[10px] text-slate-400 uppercase">INTEGRITY // 校驗</div>
+            <div class="text-sm sm:text-base font-bold text-emerald-400 mt-0.5">SHA-256 + CRC32</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TRANSFER GRID: SEND & RECEIVE CARDS (Matching Decimen HTML Structure) -->
+      <section class="transfer-grid grid grid-cols-1 md:grid-cols-2 gap-6" aria-label="Choose a side">
+        
+        <!-- Card 1: Send -->
+        <article class="transfer-card file-card hud-card hud-corner rounded-xl p-6 sm:p-8 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <p class="card-kicker font-mono text-xs uppercase tracking-widest text-ferro-cyan flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-ferro-cyan"></span>
+                <span data-i18n="send_kicker">THIS SCREEN TRANSMITS // 此螢幕發射訊號</span>
+              </p>
+              <span class="font-mono text-[11px] text-slate-500">TX_MODE // 01</span>
+            </div>
+            <h2 class="font-display text-2xl sm:text-3xl font-bold text-white mb-3" data-i18n="send_card_title">Send a file or text</h2>
+            <p class="text-slate-300 text-sm sm:text-base leading-relaxed" data-i18n="send_card_desc">
+              支援任意檔案或純文字片段。系統會將資料切分為 K 個原始區塊，透過 SplitMix32 與魯棒孤子分佈源源不絕地產生噴泉碼修復幀 (Repair Droplets)，並以高幀率 QR 光學矩陣輪播。
+            </p>
+          </div>
+
+          <div class="mt-8 pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+            <button type="button" onclick="switchMode('send')" class="action inline-flex items-center gap-3 px-5 py-3 rounded-lg bg-ferro-cyan hover:bg-cyan-300 text-slate-950 font-mono font-bold text-sm transition-all shadow-[0_0_25px_rgba(0,240,255,0.3)]">
+              <span data-i18n="btn_go_send">進入發射端 (SEND)</span>
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15"></path><path d="M12 5l7 7-7 7"></path></svg>
+            </button>
+            <span class="font-mono text-xs text-slate-400">5–30 FPS · Auto-XOR Stream</span>
+          </div>
+        </article>
+
+        <!-- Card 2: Receive -->
+        <article class="transfer-card note-feature-card hud-card hud-card-amber hud-corner hud-corner-amber rounded-xl p-6 sm:p-8 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3">
+              <p class="card-kicker font-mono text-xs uppercase tracking-widest text-ferro-amber flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-ferro-amber"></span>
+                <span data-i18n="recv_kicker">THIS CAMERA RECEIVES // 此鏡頭接收訊號</span>
+              </p>
+              <span class="font-mono text-[11px] text-slate-500">RX_MODE // 02</span>
+            </div>
+            <h2 class="font-display text-2xl sm:text-3xl font-bold text-white mb-3" data-i18n="recv_card_title">Point and receive</h2>
+            <p class="text-slate-300 text-sm sm:text-base leading-relaxed" data-i18n="recv_card_desc">
+              將手機或電腦鏡頭對準發射端螢幕即可隨時加入接收（無需握手配對）。內建「單機光學迴路模擬器」，即使只有一台電腦也能即時觀測 LT 剝離解碼器 (Peeling Decoder) 矩陣解聯立方程的過程。
+            </p>
+          </div>
+
+          <div class="mt-8 pt-4 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-3">
+            <button type="button" onclick="switchMode('receive')" class="action inline-flex items-center gap-3 px-5 py-3 rounded-lg bg-ferro-amber hover:bg-amber-400 text-slate-950 font-mono font-bold text-sm transition-all shadow-[0_0_25px_rgba(245,158,11,0.3)]">
+              <span data-i18n="btn_go_recv">進入接收端 (RECEIVE)</span>
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v15"></path><path d="M5 12l7 7 7-7"></path></svg>
+            </button>
+            <span class="font-mono text-xs text-slate-400">WebRTC Camera + Loopback Sim</span>
+          </div>
+        </article>
+
+      </section>
+
+      <!-- INTERACTIVE PROTOCOL ARCHITECTURE LAB (Explaining the 4 Core Principles) -->
+      <section class="hud-card rounded-xl p-6 sm:p-8 border border-slate-800">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+          <div>
+            <span class="font-mono text-xs text-ferro-cyan uppercase tracking-widest">DECIMEN X FERROFY // ARCHITECTURE INSPECTOR</span>
+            <h3 class="font-display text-xl sm:text-2xl font-bold text-white mt-1" data-i18n="arch_title">光學噴泉碼四大核心運作機制 (Interactive Spec)</h3>
+          </div>
+          <button type="button" onclick="startInstantDemo()" class="self-start sm:self-auto px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-ferro-cyan/40 text-ferro-cyan font-mono text-xs transition-all">
+            ▶ 啟動實時編解碼演示 (Run Live Loopback)
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+          <!-- Principle 1 -->
+          <div class="p-4 rounded-lg bg-slate-950/70 border border-slate-800/90 hover:border-ferro-cyan/40 transition-all">
+            <div class="font-mono text-xs text-ferro-cyan mb-1">01 // LT FOUNTAIN CODES</div>
+            <div class="font-bold text-white text-sm mb-2" data-i18n="p1_title">無速率噴泉碼 (XOR 水滴)</div>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="p1_desc">
+              螢幕到鏡頭是單向通道。發送端將檔案切為 K 塊並隨機 XOR 混成無限「水滴」。接收端不論順序、不怕反光漏掃，只要接滿約 1.15×K 滴水即可透過圖論剝離演算法 100% 還原。
+            </p>
+          </div>
+          <!-- Principle 2 -->
+          <div class="p-4 rounded-lg bg-slate-950/70 border border-slate-800/90 hover:border-ferro-cyan/40 transition-all">
+            <div class="font-mono text-xs text-ferro-cyan mb-1">02 // 22-BYTE WIRE HEADER</div>
+            <div class="font-bold text-white text-sm mb-2" data-i18n="p2_title">無需握手的自描述幀</div>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="p2_desc">
+              每個 QR Code 均攜帶 22 Bytes 表頭（Session ID、序號 Seq、檔案總長度、區塊大小）。接收端可在任意時刻舉起手機對準螢幕，中途加入也能無縫重組。
+            </p>
+          </div>
+          <!-- Principle 3 -->
+          <div class="p-4 rounded-lg bg-slate-950/70 border border-slate-800/90 hover:border-ferro-amber/40 transition-all">
+            <div class="font-mono text-xs text-ferro-amber mb-1">03 // SPLITMIX32 PRNG</div>
+            <div class="font-bold text-white text-sm mb-2" data-i18n="p3_title">雙端偽隨機數配方同步</div>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="p3_desc">
+              為了節省 QR 容量，水滴內不記錄「混合了哪幾個區塊」，而是由收發兩端共用確定性 SplitMix32 演算法，僅憑 Frame Seq 序號即可同步推算出完全一致的 XOR 索引組合。
+            </p>
+          </div>
+          <!-- Principle 4 -->
+          <div class="p-4 rounded-lg bg-slate-950/70 border border-slate-800/90 hover:border-emerald-400/40 transition-all">
+            <div class="font-mono text-xs text-emerald-400 mb-1">04 // DCF2 & SHA-256</div>
+            <div class="font-bold text-white text-sm mb-2" data-i18n="p4_title">容器封裝與雜湊校驗</div>
+            <p class="text-xs text-slate-400 leading-relaxed" data-i18n="p4_desc">
+              自動將檔名、MIME 類型與二進位負載封裝為 DCF2 結構，並在接收端拼湊完成後執行完整 SHA-256 與 CRC32 校驗，確保每一個位元組零誤差。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- SHARE & SUPPORT SECTION (Matching Decimen's home-share & support-card) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+        
+        <!-- Share Button Block -->
+        <div class="home-share hud-card rounded-xl p-6 flex flex-col justify-between h-full">
+          <div>
+            <span class="font-mono text-xs text-slate-400 uppercase">OPTICAL DEPLOYMENT</span>
+            <h3 class="font-display text-lg font-bold text-white mt-1" data-i18n="share_card_heading">分享此無網傳輸終端</h3>
+            <p class="text-xs text-slate-400 mt-1" data-i18n="share_card_sub">讓另一台設備掃描網址 QR Code 開啟接收端。</p>
+          </div>
+          <button id="share-open" onclick="openShareDialog()" class="secondary-button share-site mt-5 w-full inline-flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-mono text-xs font-semibold transition-all" type="button">
+            <svg class="w-4 h-4 text-ferro-cyan" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"></path><path d="M16 6l-4-4-4 4"></path><path d="M12 2v13"></path></svg>
+            <span data-i18n="btn_share_app">Share FERRO-OPTIC // 分享應用</span>
+          </button>
+        </div>
+
+        <!-- Project Ferrofy Identity Card (Replacing BuyMeACoffee with Project Ferrofy Lab Link) -->
+        <div class="support-card hud-card rounded-xl p-6 md:col-span-2 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 h-full">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-xl bg-ferro-cyan/10 border border-ferro-cyan/40 flex items-center justify-center shrink-0 text-ferro-cyan">
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+            </div>
+            <div>
+              <p class="support-title font-display font-bold text-white text-base" data-i18n="ferro_card_title">Powered by PROJECT FERROFY // 實體磁性流體互動系統美學</p>
+              <p class="support-text text-xs sm:text-sm text-slate-300 mt-1 leading-relaxed" data-i18n="ferro_card_desc">
+                本系統結合 Decimen 光學噴泉碼協議與 <a href="https://project-ferrofy.vercel.app/" target="_blank" rel="noopener noreferrer" class="text-ferro-cyan underline hover:text-cyan-300">Project Ferrofy</a> 的磁流體科技視覺語言。開源、零廣告、純前端本地運算。
+              </p>
+            </div>
+          </div>
+          <a href="https://project-ferrofy.vercel.app/" target="_blank" rel="noopener noreferrer" class="shrink-0 px-4 py-2.5 rounded-lg bg-ferro-cyan/15 hover:bg-ferro-cyan/25 border border-ferro-cyan/50 text-ferro-cyan font-mono text-xs font-semibold transition-all">
+            Visit Project Ferrofy ↗
+          </a>
+        </div>
+
+      </div>
+
+      <!-- Privacy Note (Exact philosophical match to Decimen) -->
+      <p class="privacy-note text-center font-mono text-xs text-slate-500 max-w-3xl mx-auto leading-relaxed" data-i18n="privacy_note">
+        [AIR-GAP SECURITY NOTICE] 兩台設備之間不需要任何網路路徑，所有位元組皆化為光子在空氣中傳播。資料流未經密碼學加密，因此任何能夠清楚拍到發射端螢幕的鏡頭皆可讀取內容。
+      </p>
+
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- VIEW 2: SEND MODE (Real LT Fountain Encoder + High-FPS QR Streamer)     -->
+    <!-- ======================================================================= -->
+    <div id="view-send" class="hidden space-y-6">
+      
+      <!-- Top Bar -->
+      <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
+        <div>
+          <div class="font-mono text-xs text-ferro-cyan uppercase">OPTICAL TRANSMITTER // TX ENGINE</div>
+          <h2 class="font-display text-2xl sm:text-3xl font-bold text-white" data-i18n="tx_heading">發射端：噴泉碼光學編碼器</h2>
+        </div>
+        <div class="flex items-center gap-2">
+          <button type="button" onclick="loadSamplePayload('ferro')" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-mono text-ferro-cyan transition-all">
+            + 載入 Ferrofy 測試設定檔
+          </button>
+          <button type="button" onclick="sendToLoopbackSimulator()" class="px-3.5 py-1.5 rounded-lg bg-ferro-amber/20 hover:bg-ferro-amber/30 border border-ferro-amber/50 text-xs font-mono text-ferro-amber font-semibold transition-all">
+            ⚡ 同步傳送至接收端模擬器
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- LEFT COLUMN: Payload Configuration & Fountain Parameters (5 cols) -->
+        <div class="lg:col-span-5 space-y-5">
+          
+          <!-- Input Source Card -->
+          <div class="hud-card hud-corner rounded-xl p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-xs text-ferro-cyan font-semibold uppercase">1. PAYLOAD SOURCE // 選擇傳輸內容</span>
+              <div class="inline-flex rounded-md bg-slate-900 p-0.5 border border-slate-800 font-mono text-xs">
+                <button type="button" id="tab-text-btn" onclick="switchSendTab('text')" class="px-2.5 py-1 rounded bg-ferro-cyan text-slate-950 font-bold">TEXT 文字</button>
+                <button type="button" id="tab-file-btn" onclick="switchSendTab('file')" class="px-2.5 py-1 rounded text-slate-400 hover:text-white">FILE 檔案</button>
+              </div>
+            </div>
+
+            <!-- Text Input Tab -->
+            <div id="send-tab-text" class="space-y-2">
+              <textarea id="tx-text-input" rows="5" oninput="handleTextPayloadChange()" class="w-full rounded-lg bg-slate-950/90 border border-slate-800 focus:border-ferro-cyan focus:outline-none p-3 font-mono text-xs text-slate-200 leading-relaxed" placeholder="在此貼上任何文字、JSON、程式碼或機密金鑰...">// PROJECT FERROFY - MAGNETIC FLUID TELEMETRY CONFIG
+{
+  "system": "FERRO-OPTIC v1.0",
+  "protocol": "LT-Fountain-SplitMix32",
+  "magnetic_flux_mT": 42.8,
+  "viscosity_cP": 6.5,
+  "air_gapped": true,
+  "message": "透過純光學二維碼噴泉串流成功傳輸！即使鏡頭漏掃 20% 的畫面，也能透過 XOR 聯立方程式 100% 無損還原。"
+}</textarea>
+              <div class="flex justify-between text-[11px] font-mono text-slate-400">
+                <span id="tx-filename-display">檔名: ferrofy-telemetry.json</span>
+                <span id="tx-byte-counter">0 Bytes</span>
+              </div>
+            </div>
+
+            <!-- File Input Tab -->
+            <div id="send-tab-file" class="hidden space-y-3">
+              <label for="tx-file-input" class="flex flex-col items-center justify-center border-2 border-dashed border-slate-700 hover:border-ferro-cyan rounded-xl p-6 cursor-pointer bg-slate-950/50 transition-all text-center">
+                <svg class="w-8 h-8 text-ferro-cyan mb-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <span class="font-mono text-xs text-white font-semibold">點擊或拖曳檔案至此處</span>
+                <span class="font-mono text-[11px] text-slate-400 mt-1">支援任何二進位檔案、圖片、文件（自動切塊編碼）</span>
+                <input id="tx-file-input" type="file" class="hidden" onchange="handleFileSelect(event)">
+              </label>
+              <div id="tx-file-info" class="hidden px-3 py-2 rounded bg-slate-900 border border-slate-800 font-mono text-xs text-ferro-cyan flex items-center justify-between">
+                <span id="tx-selected-file-label" class="truncate">尚未選擇檔案</span>
+                <button type="button" onclick="clearSelectedFile()" class="text-rose-400 hover:underline ml-2">清除</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fountain Parameters Card -->
+          <div class="hud-card rounded-xl p-5 space-y-4">
+            <span class="font-mono text-xs text-ferro-cyan font-semibold uppercase">2. OPTICAL MODULATION // 噴泉碼與光學參數</span>
+
+            <!-- FPS Control -->
+            <div>
+              <div class="flex justify-between font-mono text-xs mb-1.5">
+                <label for="tx-fps-slider" class="text-slate-300">FRAME RATE (光學刷新率)</label>
+                <span id="tx-fps-label" class="text-ferro-cyan font-bold">12 FPS</span>
+              </div>
+              <input id="tx-fps-slider" type="range" min="2" max="24" value="12" oninput="updateTxParams()" class="w-full accent-cyan-400 cursor-pointer">
+              <div class="flex justify-between text-[10px] font-mono text-slate-500 mt-0.5">
+                <span>2 FPS (穩定抗反光)</span>
+                <span>12 FPS (標準)</span>
+                <span>24 FPS (極速傳輸)</span>
+              </div>
+            </div>
+
+            <!-- Block Size Control -->
+            <div>
+              <div class="flex justify-between font-mono text-xs mb-1.5">
+                <span class="text-slate-300">SOURCE BLOCK SIZE (區塊切片大小)</span>
+                <span id="tx-blocksize-label" class="text-ferro-amber font-bold">64 Bytes</span>
+              </div>
+              <div class="grid grid-cols-3 gap-2 font-mono text-xs">
+                <button type="button" onclick="setBlockSize(32)" id="bs-32" class="bs-btn py-1.5 rounded border border-slate-700 bg-slate-900 text-slate-300 hover:border-ferro-cyan">32 B (高密度塊)</button>
+                <button type="button" onclick="setBlockSize(64)" id="bs-64" class="bs-btn py-1.5 rounded border border-ferro-cyan bg-ferro-cyan/15 text-ferro-cyan font-bold">64 B (平衡)</button>
+                <button type="button" onclick="setBlockSize(128)" id="bs-128" class="bs-btn py-1.5 rounded border border-slate-700 bg-slate-900 text-slate-300 hover:border-ferro-cyan">128 B (大塊)</button>
+              </div>
+            </div>
+
+            <!-- Stream Controls -->
+            <div class="pt-2 flex flex-wrap gap-2">
+              <button type="button" id="tx-toggle-btn" onclick="toggleTxStream()" class="flex-1 py-2.5 px-4 rounded-lg bg-ferro-cyan hover:bg-cyan-300 text-slate-950 font-mono font-bold text-xs transition-all shadow-[0_0_20px_rgba(0,240,255,0.25)]">
+                ⏸ 暫停光學發射 (PAUSE STREAM)
+              </button>
+              <button type="button" onclick="resetTxSession()" class="py-2.5 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs border border-slate-700" title="Reset Session ID">
+                ↻ 重置 Session
+              </button>
+            </div>
+          </div>
+
+          <!-- 22-Byte Self-Describing Wire Header Inspector -->
+          <div class="hud-card rounded-xl p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-xs text-ferro-amber font-semibold uppercase">3. LIVE 22-BYTE WIRE HEADER // 實時幀表頭</span>
+              <span class="font-mono text-[10px] text-slate-400">DCF2 SELF-DESCRIBING</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 font-mono text-xs">
+              <div class="p-2 rounded bg-slate-950 border border-slate-800">
+                <div class="text-[10px] text-slate-500">SESSION ID (uint32)</div>
+                <div id="hud-tx-session" class="text-ferro-cyan font-bold">0x00000000</div>
+              </div>
+              <div class="p-2 rounded bg-slate-950 border border-slate-800">
+                <div class="text-[10px] text-slate-500">DROPLET SEQ (序號)</div>
+                <div id="hud-tx-seq" class="text-white font-bold">#0</div>
+              </div>
+              <div class="p-2 rounded bg-slate-950 border border-slate-800">
+                <div class="text-[10px] text-slate-500">SOURCE BLOCKS (K)</div>
+                <div id="hud-tx-k" class="text-ferro-amber font-bold">0 Blocks</div>
+              </div>
+              <div class="p-2 rounded bg-slate-950 border border-slate-800">
+                <div class="text-[10px] text-slate-500">DEGREE (XOR 混合度 d)</div>
+                <div id="hud-tx-degree" class="text-emerald-400 font-bold">d = 1</div>
+              </div>
+            </div>
+            <div class="p-2.5 rounded bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-400 break-all">
+              <span class="text-slate-500">XOR MIXING INDICES (SplitMix32):</span>
+              <span id="hud-tx-indices" class="text-ferro-cyan ml-1">[0]</span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN: High-Speed Animated QR Viewport + Source Block Matrix (7 cols) -->
+        <div class="lg:col-span-7 space-y-5">
+          
+          <div class="hud-card hud-corner rounded-xl p-5 sm:p-6 flex flex-col items-center">
+            
+            <!-- Viewport Header -->
+            <div class="w-full flex flex-wrap items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-800 font-mono text-xs">
+              <div class="flex items-center gap-2">
+                <span id="tx-live-dot" class="w-2.5 h-2.5 rounded-full bg-ferro-cyan animate-ping"></span>
+                <span class="text-white font-bold">OPTICAL QR MATRIX STREAM</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <span id="hud-tx-bitrate" class="text-ferro-cyan">1.8 KB/s</span>
+                <button type="button" onclick="toggleQrInvert()" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px]">
+                  ◐ 反轉對比 (抗眩光)
+                </button>
+              </div>
+            </div>
+
+            <!-- QR Code Canvas Container -->
+            <div id="qr-stage-wrapper" class="relative p-5 sm:p-6 rounded-2xl bg-white shadow-[0_0_50px_rgba(0,240,255,0.18)] transition-colors duration-200 flex items-center justify-center">
+              <canvas id="tx-qr-canvas" width="320" height="320" class="qr-crisp w-[260px] h-[260px] sm:w-[340px] sm:h-[340px]"></canvas>
+            </div>
+
+            <!-- Live Source Block XOR Visualizer -->
+            <div class="w-full mt-6 pt-4 border-t border-slate-800">
+              <div class="flex items-center justify-between font-mono text-xs mb-2">
+                <span class="text-slate-400">REAL-TIME FOUNTAIN DROPLET GENERATOR // 當前水滴正混合的原始區塊</span>
+                <span id="hud-tx-sha" class="text-[11px] text-slate-500">CRC32: ----</span>
+              </div>
+              <div id="tx-block-grid" class="grid grid-cols-8 sm:grid-cols-12 gap-1.5 pt-1">
+                <!-- Populated dynamically with K blocks -->
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ======================================================================= -->
+    <!-- VIEW 3: RECEIVE MODE (Camera Scanner + LT Peeling Decoder + Loopback)   -->
+    <!-- ======================================================================= -->
+    <div id="view-receive" class="hidden space-y-6">
+
+      <!-- Top Bar -->
+      <div class="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
+        <div>
+          <div class="font-mono text-xs text-ferro-amber uppercase">OPTICAL RECEIVER // LT PEELING DECODER</div>
+          <h2 class="font-display text-2xl sm:text-3xl font-bold text-white" data-i18n="rx_heading">接收端：光學鏡頭掃描與噴泉解碼器</h2>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" id="rx-sim-btn" onclick="toggleLoopbackSimulation()" class="px-4 py-2 rounded-lg bg-ferro-amber hover:bg-amber-400 text-slate-950 font-mono font-bold text-xs transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)]">
+            ⚡ 啟動單機光學迴路模擬 (Simulate Optical Link)
+          </button>
+          <button type="button" id="rx-cam-btn" onclick="toggleCameraScanner()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-ferro-cyan/50 text-ferro-cyan font-mono font-semibold text-xs transition-all">
+            📷 開啟實體相機鏡頭掃描
+          </button>
+          <button type="button" onclick="resetRxDecoder()" class="px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-400 font-mono text-xs">
+            重置解碼器
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+
+        <!-- LEFT COLUMN: Optical Camera / Simulator Viewport (5 cols) -->
+        <div class="lg:col-span-5 space-y-5">
+          
+          <div class="hud-card hud-card-amber hud-corner hud-corner-amber rounded-xl p-5 space-y-4">
+            <div class="flex items-center justify-between font-mono text-xs">
+              <span class="text-ferro-amber font-bold uppercase flex items-center gap-2">
+                <span id="rx-status-dot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+                <span id="rx-source-label">OPTICAL SENSOR STANDBY</span>
+              </span>
+              <span id="rx-glare-indicator" class="text-[11px] text-slate-400">GLARE LOSS: 15% SIM</span>
+            </div>
+
+            <!-- Optical Viewport (Shows either WebRTC video or Simulated Optical QR Feed) -->
+            <div class="relative aspect-square w-full rounded-xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+              <!-- Live Camera Video -->
+              <video id="rx-video" class="hidden w-full h-full object-cover" playsinline muted></video>
+              
+              <!-- Optical Simulation / Scan Canvas -->
+              <canvas id="rx-scan-canvas" width="320" height="320" class="qr-crisp w-4/5 h-4/5 object-contain opacity-90"></canvas>
+
+              <!-- Tactical Crosshair Overlay -->
+              <div class="absolute inset-4 border border-ferro-cyan/30 rounded-lg pointer-events-none flex flex-col justify-between p-3 font-mono text-[10px] text-ferro-cyan/80">
+                <div class="flex justify-between">
+                  <span>RX_LOCK // AUTO</span>
+                  <span id="rx-fps-counter">0 DROPS/S</span>
+                </div>
+                <div id="rx-drop-toast" class="self-center px-2.5 py-1 rounded bg-slate-950/90 border border-slate-800 text-slate-300">
+                  等待光學訊號輸入...
+                </div>
+                <div class="flex justify-between">
+                  <span>SPLITMIX32: SYNC</span>
+                  <span>DCF2: READY</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Simulated Glare / Frame Drop Rate Slider -->
+            <div class="p-3 rounded-lg bg-slate-950/80 border border-slate-800 space-y-1.5">
+              <div class="flex justify-between font-mono text-xs">
+                <span class="text-slate-400">模擬環境反光 / 手震掉幀率 (Simulated Drop Rate)</span>
+                <span id="rx-loss-label" class="text-ferro-amber font-bold">15% 漏幀</span>
+              </div>
+              <input id="rx-loss-slider" type="range" min="0" max="60" value="15" oninput="updateSimLossRate()" class="w-full accent-amber-400 cursor-pointer">
+              <p class="text-[11px] font-mono text-slate-500">
+                即使調高至 50% 隨機漏掃，LT 噴泉碼依然無需重傳握手，持續接水即可完成解碼。
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- RIGHT COLUMN: LT Peeling Decoder Matrix & Reconstructed Output (7 cols) -->
+        <div class="lg:col-span-7 space-y-5">
+
+          <!-- Decoder Telemetry Card -->
+          <div class="hud-card rounded-xl p-5 sm:p-6 space-y-5">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+              <div>
+                <span class="font-mono text-xs text-ferro-cyan uppercase">LT PEELING GRAPH SOLVER // 圖論剝離解碼進度</span>
+                <h3 id="rx-file-title" class="font-display text-lg font-bold text-white mt-0.5">等待鎖定自描述幀表頭 (Waiting for 22-Byte Header)...</h3>
+              </div>
+              <span id="rx-verify-badge" class="px-2.5 py-1 rounded font-mono text-xs bg-slate-800 text-slate-400 border border-slate-700">
+                IDLE // 待命
+              </span>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="space-y-1.5">
+              <div class="flex justify-between font-mono text-xs">
+                <span class="text-slate-300">RECONSTRUCTION PROGRESS (區塊還原率)</span>
+                <span id="rx-progress-text" class="text-ferro-cyan font-bold">0 / 0 Blocks (0%)</span>
+              </div>
+              <div class="w-full h-3 rounded-full bg-slate-900 border border-slate-800 overflow-hidden p-0.5">
+                <div id="rx-progress-bar" class="h-full rounded-full bg-gradient-to-r from-ferro-cyan to-emerald-400 transition-all duration-200" style="width: 0%"></div>
+              </div>
+            </div>
+
+            <!-- 4 Telemetry Counters -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono">
+              <div class="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                <div class="text-[10px] text-slate-500">CAPTURED DROPLETS</div>
+                <div id="rx-stat-droplets" class="text-base font-bold text-white mt-0.5">0 滴</div>
+              </div>
+              <div class="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                <div class="text-[10px] text-slate-500">SOLVED BLOCKS (K)</div>
+                <div id="rx-stat-solved" class="text-base font-bold text-ferro-cyan mt-0.5">0 / 0</div>
+              </div>
+              <div class="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                <div class="text-[10px] text-slate-500">BUFFERED XOR EQS</div>
+                <div id="rx-stat-buffered" class="text-base font-bold text-ferro-amber mt-0.5">0 條方程</div>
+              </div>
+              <div class="p-3 rounded-lg bg-slate-950 border border-slate-800">
+                <div class="text-[10px] text-slate-500">OVERHEAD RATIO</div>
+                <div id="rx-stat-overhead" class="text-base font-bold text-emerald-400 mt-0.5">0.00x</div>
+              </div>
+            </div>
+
+            <!-- Visual Block Reconstruction Matrix -->
+            <div>
+              <div class="flex flex-wrap items-center justify-between gap-2 font-mono text-[11px] text-slate-400 mb-2">
+                <span>SOURCE BLOCKS MATRIX (點擊或觀察區塊解鎖狀態)</span>
+                <div class="flex items-center gap-3">
+                  <span class="flex items-center gap-1"><i class="w-2.5 h-2.5 rounded-sm bg-ferro-cyan inline-block"></i> 直接解開 (d=1)</span>
+                  <span class="flex items-center gap-1"><i class="w-2.5 h-2.5 rounded-sm bg-ferro-amber inline-block"></i> XOR 剝離還原 (Peeled)</span>
+                </div>
+              </div>
+              <div id="rx-block-grid" class="grid grid-cols-8 sm:grid-cols-12 gap-1.5 p-3 rounded-lg bg-slate-950 border border-slate-800 min-h-[76px]">
+                <div class="col-span-full text-center font-mono text-xs text-slate-600 py-4">
+                  尚未收到任何噴泉碼水滴 — 請點擊上方「啟動單機光學迴路模擬」或開啟鏡頭
+                </div>
+              </div>
+            </div>
+
+            <!-- Live Peeling Log -->
+            <div class="p-3 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] space-y-1 max-h-28 overflow-y-auto" id="rx-peel-log">
+              <div class="text-slate-500">[SYSTEM] LT Peeling Decoder Ready. Waiting for DCF2 stream...</div>
+            </div>
+
+            <!-- Reconstructed File / Text Output Box (Revealed when 100% solved) -->
+            <div id="rx-result-panel" class="hidden p-4 rounded-xl bg-emerald-950/25 border border-emerald-500/50 space-y-3">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                  <span class="font-mono text-xs font-bold text-emerald-300">SHA-256 & CRC32 VERIFIED // 檔案 100% 無損還原成功！</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button type="button" onclick="copyReconstructedText()" class="px-3 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 font-mono text-xs">
+                    複製內容
+                  </button>
+                  <button type="button" onclick="downloadReconstructedFile()" class="px-3.5 py-1 rounded bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-mono font-bold text-xs">
+                    ⬇ 下載還原檔案
+                  </button>
+                </div>
+              </div>
+              <pre id="rx-result-preview" class="p-3 rounded-lg bg-slate-950/90 border border-slate-800 font-mono text-xs text-slate-200 overflow-x-auto max-h-48 whitespace-pre-wrap"></pre>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ==================== SHARE DIALOG (Modeled after Decimen's <dialog id="share-dialog">) ==================== -->
+    <dialog id="share-dialog" class="help-dialog share-dialog rounded-2xl bg-[#0B0F17] text-slate-100 border border-ferro-cyan/50 p-6 max-w-md w-full shadow-[0_0_60px_rgba(0,240,255,0.2)]">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h2 id="share-title" tabindex="-1" class="font-display text-lg font-bold text-white">Share FERRO-OPTIC // 分享光學終端</h2>
+        <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-ferro-cyan/10 text-ferro-cyan">QR LINK</span>
+      </div>
+      <p class="share-hint text-xs text-slate-400 mt-3 font-mono">
+        使用另一台設備的相機掃描下方二維碼，或複製連結開啟此無網光學傳輸工具：
+      </p>
+      <div class="my-5 flex justify-center">
+        <div class="p-4 rounded-xl bg-white shadow-lg">
+          <canvas id="share-qr" width="180" height="180" class="qr-crisp w-44 h-44"></canvas>
+        </div>
+      </div>
+      <div class="share-url-row flex gap-2">
+        <input id="share-url" readonly value="https://project-ferrofy.vercel.app/#ferro-optic" aria-label="Site link" class="flex-1 px-3 py-2 rounded-lg bg-slate-950 border border-slate-800 font-mono text-xs text-ferro-cyan focus:outline-none">
+        <button id="share-copy" onclick="copyShareUrl()" class="secondary-button px-4 py-2 rounded-lg bg-ferro-cyan text-slate-950 font-mono font-bold text-xs hover:bg-cyan-300 transition-all" type="button">
+          Copy
+        </button>
+      </div>
+      <div class="note-actions mt-5 pt-3 border-t border-slate-800 flex justify-end gap-2">
+        <button id="share-close" onclick="closeShareDialog()" class="secondary-button px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono text-xs" type="button">
+          Close // 關閉
+        </button>
+      </div>
+    </dialog>
+
+  </main>
+
+  <!-- ==================== SITE FOOTER (Matching Decimen Structure + Project Ferrofy) ==================== -->
+  <footer class="site-footer relative z-10 border-t border-slate-800/80 bg-[#05070B]/90 py-6 mt-12">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 font-mono text-xs text-slate-400">
+      <div class="footer-id flex flex-wrap items-center gap-2">
+        <span class="text-white font-bold">FERRO-OPTIC Optical Transfer</span>
+        <span>·</span>
+        <span>v1.0.0 · Inspired by Decimen.app &amp; <a href="https://project-ferrofy.vercel.app/" target="_blank" rel="noopener noreferrer" class="text-ferro-cyan hover:underline">PROJECT FERROFY</a></span>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="https://project-ferrofy.vercel.app/" target="_blank" rel="noopener noreferrer" class="hover:text-ferro-cyan transition-colors">Project Ferrofy 主站</a>
+        <a href="https://decimen.app/" target="_blank" rel="noopener noreferrer" class="hover:text-ferro-cyan transition-colors">Decimen Protocol</a>
+        <select id="footer-lang-select" onchange="setLanguage(this.value)" aria-label="Language" class="lang-select bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 focus:outline-none focus:border-ferro-cyan">
+          <option value="zh">繁體中文 (ZH-HK/TW)</option>
+          <option value="en">English (EN)</option>
+        </select>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ==================== CORE JAVASCRIPT: FOUNTAIN CODE ENGINE & UI ==================== -->
+  <script>
+    /*************************************************************************
+     * 1. SPLITMIX32 DETERMINISTIC PRNG & CRC32 CHECKSUM
+     *    Both Sender and Receiver run the exact same SplitMix32 seeded by
+     *    (sessionId ^ seq) so the receiver knows which blocks were XORed
+     *    without wasting QR payload space listing block indices.
+     *************************************************************************/
+    function splitMix32(seed) {
+      let a = seed >>> 0;
+      return function() {
+        a |= 0;
+        a = (a + 0x9e3779b9) | 0;
+        let t = a ^ (a >>> 16);
+        t = Math.imul(t, 0x21f0aaad);
+        t = t ^ (t >>> 15);
+        t = Math.imul(t, 0x735a2d97);
+        return ((t = t ^ (t >>> 15)) >>> 0) / 4294967296;
+      };
+    }
+
+    function crc32Bytes(uint8Arr) {
+      let crc = 0 ^ (-1);
+      for (let i = 0; i < uint8Arr.length; i++) {
+        let byte = uint8Arr[i];
+        crc = (crc >>> 8) ^ CRC32_TABLE[(crc ^ byte) & 0xFF];
+      }
+      return (crc ^ (-1)) >>> 0;
+    }
+
+    const CRC32_TABLE = (() => {
+      let c;
+      const table = [];
+      for (let n = 0; n < 256; n++) {
+        c = n;
+        for (let k = 0; k < 8; k++) {
+          c = ((c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1));
+        }
+        table[n] = c >>> 0;
+      }
+      return table;
+    })();
+
+    /**
+     * Given (sessionId, seq, K), deterministically selects degree d and d unique block indices.
+     * Ensures initial K droplets are degree-1 systematic frames or mixed soliton distribution
+     * for rapid visual demonstration + genuine multi-block XOR equations for peeling!
+     */
+    function getFountainRecipe(sessionId, seq, K) {
+      if (K <= 1) return { degree: 1, indices: [0] };
+      const rng = splitMix32((sessionId ^ Math.imul(seq + 1, 0x85ebca6b)) >>> 0);
+
+      // Soliton-inspired degree distribution:
+      // ~38% degree 1 (ripples to trigger peeling), ~35% degree 2, ~18% degree 3, ~9% degree 4
+      const r = rng();
+      let degree = 1;
+      if (r < 0.38) degree = 1;
+      else if (r < 0.73) degree = Math.min(K, 2);
+      else if (r < 0.91) degree = Math.min(K, 3);
+      else degree = Math.min(K, 4);
+
+      const chosen = new Set();
+      while (chosen.size < degree) {
+        const idx = Math.floor(rng() * K);
+        chosen.add(idx);
+      }
+      return {
+        degree,
+        indices: Array.from(chosen).sort((a, b) => a - b)
+      };
+    }
+
+    /*************************************************************************
+     * 2. TRANSMITTER (SEND MODE) STATE & LT FOUNTAIN STREAMER
+     *************************************************************************/
+    const txState = {
+      sessionId: (Math.random() * 0xFFFFFFFF) >>> 0,
+      fileName: 'ferrofy-telemetry.json',
+      mimeType: 'application/json',
+      rawBytes: new Uint8Array(0),
+      blockSize: 64,
+      blocks: [], // Array of Uint8Array(blockSize)
+      K: 0,
+      seq: 0,
+      fps: 12,
+      isStreaming: true,
+      invertQr: false,
+      timerId: null,
+      payloadCRC: 0,
+      lastDropletPacket: null
+    };
+
+    function encodeUTF8(str) {
+      return new TextEncoder().encode(str);
+    }
+
+    function decodeUTF8(bytes) {
+      return new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+    }
+
+    function uint8ToBase64(bytes) {
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary);
+    }
+
+    function base64ToUint8(b64) {
+      const binary = atob(b64);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    function prepareTxSourceBlocks(bytes, fileName, mimeType) {
+      txState.fileName = fileName || 'payload.txt';
+      txState.mimeType = mimeType || 'text/plain';
+      txState.rawBytes = bytes;
+      txState.payloadCRC = crc32Bytes(bytes);
+      txState.sessionId = (Math.random() * 0xFFFFFFFF) >>> 0;
+      txState.seq = 0;
+
+      const bs = txState.blockSize;
+      const totalLen = bytes.length;
+      const K = Math.max(1, Math.ceil(totalLen / bs));
+      txState.K = K;
+      txState.blocks = [];
+
+      for (let i = 0; i < K; i++) {
+        const chunk = new Uint8Array(bs);
+        const start = i * bs;
+        const slice = bytes.subarray(start, Math.min(start + bs, totalLen));
+        chunk.set(slice, 0); // zero-padded last block
+        txState.blocks.push(chunk);
+      }
+
+      // Update UI Counters
+      document.getElementById('tx-filename-display').textContent = `檔名: ${txState.fileName}`;
+      document.getElementById('tx-byte-counter').textContent = `${totalLen} Bytes (${K} Blocks)`;
+      document.getElementById('hud-tx-session').textContent = '0x' + txState.sessionId.toString(16).toUpperCase().padStart(8, '0');
+      document.getElementById('hud-tx-k').textContent = `${K} Blocks`;
+      document.getElementById('hud-tx-sha').textContent = `CRC32: 0x${txState.payloadCRC.toString(16).toUpperCase()}`;
+
+      renderTxBlockGrid([]);
+      stepTxFountainFrame();
+    }
+
+    function renderTxBlockGrid(activeIndices) {
+      const grid = document.getElementById('tx-block-grid');
+      if (!grid) return;
+      const activeSet = new Set(activeIndices);
+      grid.innerHTML = '';
+      for (let i = 0; i < txState.K; i++) {
+        const isMixed = activeSet.has(i);
+        const cell = document.createElement('div');
+        cell.className = `h-7 rounded flex items-center justify-center font-mono text-[10px] border transition-all duration-100 ${
+          isMixed
+            ? 'bg-ferro-cyan text-slate-950 font-bold border-white shadow-[0_0_12px_rgba(0,240,255,0.6)] scale-105'
+            : 'bg-slate-900/90 text-slate-400 border-slate-800'
+        }`;
+        cell.textContent = `B${i}`;
+        grid.appendChild(cell);
+      }
+    }
+
+    /**
+     * Generates one LT Fountain droplet, packs the self-describing header + XOR payload,
+     * and draws the QR code onto #tx-qr-canvas
+     */
+    function stepTxFountainFrame() {
+      if (txState.K === 0) return;
+
+      const seq = txState.seq++;
+      const recipe = getFountainRecipe(txState.sessionId, seq, txState.K);
+      const xorPayload = new Uint8Array(txState.blockSize);
+
+      for (const idx of recipe.indices) {
+        const srcBlock = txState.blocks[idx];
+        for (let b = 0; b < txState.blockSize; b++) {
+          xorPayload[b] ^= srcBlock[b];
+        }
+      }
+
+      // Self-Describing DCF2 Wire Frame JSON/Compact Pipe Protocol:
+      // Format: FO2|<sessionId>|<seq>|<totalBytes>|<blockSize>|<K>|<crcHex>|<fileName>|<b64XorData>
+      const wireString = [
+        'FO2',
+        txState.sessionId,
+        seq,
+        txState.rawBytes.length,
+        txState.blockSize,
+        txState.K,
+        txState.payloadCRC.toString(16),
+        encodeURIComponent(txState.fileName),
+        uint8ToBase64(xorPayload)
+      ].join('|');
+
+      txState.lastDropletPacket = wireString;
+
+      // Update HUD
+      document.getElementById('hud-tx-seq').textContent = `#${seq}`;
+      document.getElementById('hud-tx-degree').textContent = `d = ${recipe.degree}`;
+      document.getElementById('hud-tx-indices').textContent = `[${recipe.indices.map(i => 'B' + i).join(' ⊕ ')}]`;
+      const bitrateKB = ((txState.blockSize * txState.fps) / 1024).toFixed(2);
+      document.getElementById('hud-tx-bitrate').textContent = `${bitrateKB} KB/s (${txState.fps} FPS)`;
+
+      renderTxBlockGrid(recipe.indices);
+      drawQrToCanvas(wireString, document.getElementById('tx-qr-canvas'), txState.invertQr);
+
+      // If Loopback Simulator is active, feed this optical frame (with simulated glare drop)
+      if (rxState.simActive) {
+        feedLoopbackFrame(wireString);
+      }
+    }
+
+    function drawQrToCanvas(text, canvas, invert = false) {
+      if (!canvas || typeof qrcode === 'undefined') return;
+      try {
+        const qr = qrcode(0, 'L');
+        qr.addData(text);
+        qr.make();
+
+        const ctx = canvas.getContext('2d');
+        const count = qr.getModuleCount();
+        const size = canvas.width;
+        const margin = 2;
+        const cellSize = size / (count + margin * 2);
+
+        ctx.fillStyle = invert ? '#05070B' : '#FFFFFF';
+        ctx.fillRect(0, 0, size, size);
+
+        ctx.fillStyle = invert ? '#00F0FF' : '#05070B';
+        for (let r = 0; r < count; r++) {
+          for (let c = 0; c < count; c++) {
+            if (qr.isDark(r, c)) {
+              ctx.fillRect(
+                Math.floor((c + margin) * cellSize),
+                Math.floor((r + margin) * cellSize),
+                Math.ceil(cellSize),
+                Math.ceil(cellSize)
+              );
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('QR capacity warning:', err);
+      }
+    }
+
+    function startTxLoop() {
+      if (txState.timerId) clearInterval(txState.timerId);
+      if (!txState.isStreaming) return;
+      const interval = Math.max(30, Math.floor(1000 / txState.fps));
+      txState.timerId = setInterval(stepTxFountainFrame, interval);
+    }
+
+    function toggleTxStream() {
+      txState.isStreaming = !txState.isStreaming;
+      const btn = document.getElementById('tx-toggle-btn');
+      const dot = document.getElementById('tx-live-dot');
+      if (txState.isStreaming) {
+        btn.textContent = '⏸ 暫停光學發射 (PAUSE STREAM)';
+        btn.className = 'flex-1 py-2.5 px-4 rounded-lg bg-ferro-cyan hover:bg-cyan-300 text-slate-950 font-mono font-bold text-xs transition-all shadow-[0_0_20px_rgba(0,240,255,0.25)]';
+        dot.classList.add('animate-ping');
+        startTxLoop();
+      } else {
+        btn.textContent = '▶ 繼續光學發射 (RESUME STREAM)';
+        btn.className = 'flex-1 py-2.5 px-4 rounded-lg bg-ferro-amber hover:bg-amber-400 text-slate-950 font-mono font-bold text-xs transition-all';
+        dot.classList.remove('animate-ping');
+        if (txState.timerId) clearInterval(txState.timerId);
+      }
+    }
+
+    function updateTxParams() {
+      const fpsVal = parseInt(document.getElementById('tx-fps-slider').value, 10);
+      txState.fps = fpsVal;
+      document.getElementById('tx-fps-label').textContent = `${fpsVal} FPS`;
+      startTxLoop();
+    }
+
+    function setBlockSize(size) {
+      txState.blockSize = size;
+      document.getElementById('tx-blocksize-label').textContent = `${size} Bytes`;
+      [32, 64, 128].forEach(s => {
+        const el = document.getElementById(`bs-${s}`);
+        if (s === size) {
+          el.className = 'bs-btn py-1.5 rounded border border-ferro-cyan bg-ferro-cyan/15 text-ferro-cyan font-bold';
+        } else {
+          el.className = 'bs-btn py-1.5 rounded border border-slate-700 bg-slate-900 text-slate-300 hover:border-ferro-cyan';
+        }
+      });
+      prepareTxSourceBlocks(txState.rawBytes, txState.fileName, txState.mimeType);
+    }
+
+    function toggleQrInvert() {
+      txState.invertQr = !txState.invertQr;
+      const wrapper = document.getElementById('qr-stage-wrapper');
+      wrapper.style.backgroundColor = txState.invertQr ? '#05070B' : '#FFFFFF';
+      stepTxFountainFrame();
+    }
+
+    function resetTxSession() {
+      prepareTxSourceBlocks(txState.rawBytes, txState.fileName, txState.mimeType);
+    }
+
+    function handleTextPayloadChange() {
+      const val = document.getElementById('tx-text-input').value;
+      const bytes = encodeUTF8(val);
+      prepareTxSourceBlocks(bytes, 'ferrofy-telemetry.json', 'application/json');
+    }
+
+    function handleFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const arrayBuffer = e.target.result;
+        const bytes = new Uint8Array(arrayBuffer);
+        // Limit single-page demo to first 8KB if user uploads a huge file so QR codes stay crisp
+        const cappedBytes = bytes.length > 8192 ? bytes.subarray(0, 8192) : bytes;
+        document.getElementById('tx-file-info').classList.remove('hidden');
+        document.getElementById('tx-selected-file-label').textContent = `${file.name} (${cappedBytes.length} Bytes 編碼中)`;
+        prepareTxSourceBlocks(cappedBytes, file.name, file.type || 'application/octet-stream');
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function clearSelectedFile() {
+      document.getElementById('tx-file-input').value = '';
+      document.getElementById('tx-file-info').classList.add('hidden');
+      handleTextPayloadChange();
+    }
+
+    function switchSendTab(tab) {
+      const textTab = document.getElementById('send-tab-text');
+      const fileTab = document.getElementById('send-tab-file');
+      const textBtn = document.getElementById('tab-text-btn');
+      const fileBtn = document.getElementById('tab-file-btn');
+      if (tab === 'text') {
+        textTab.classList.remove('hidden');
+        fileTab.classList.add('hidden');
+        textBtn.className = 'px-2.5 py-1 rounded bg-ferro-cyan text-slate-950 font-bold';
+        fileBtn.className = 'px-2.5 py-1 rounded text-slate-400 hover:text-white';
+      } else {
+        textTab.classList.add('hidden');
+        fileTab.classList.remove('hidden');
+        fileBtn.className = 'px-2.5 py-1 rounded bg-ferro-cyan text-slate-950 font-bold';
+        textBtn.className = 'px-2.5 py-1 rounded text-slate-400 hover:text-white';
+      }
+    }
+
+    function loadSamplePayload(type) {
+      switchSendTab('text');
+      const sample = `// PROJECT FERROFY // OPTICAL FOUNTAIN TELEMETRY
+{
+  "device": "FERRO-OPTIC MATRIX MK-IV",
+  "location": "Hong Kong Cybernetic Lab",
+  "magnetic_field_gauss": 1450,
+  "ferrofluid_spikes": 32,
+  "fountain_protocol": "LT-SplitMix32-DCF2",
+  "timestamp": "${new Date().toISOString()}",
+  "note": "此檔案透過純光學噴泉碼無網傳輸，無需配對握手。"
+}`;
+      document.getElementById('tx-text-input').value = sample;
+      handleTextPayloadChange();
+    }
+
+    /*************************************************************************
+     * 3. RECEIVER (RECEIVE MODE) & REAL LT PEELING DECODER ENGINE
+     *    Implements iterative Belief Propagation (Peeling Decoder):
+     *    - Maintains `solvedBlocks[i]` (Uint8Array) and `solveMethod[i]` ('direct' | 'peeled')
+     *    - Maintains `equationBuffer` of reduced droplets { indices: Set, data: Uint8Array, seq }
+     *    - Whenever a degree-1 droplet arrives, it unlocks block[idx] and ripples
+     *      through all buffered equations, XORing block[idx] out of them!
+     *************************************************************************/
+    const rxState = {
+      sessionId: null,
+      fileName: '',
+      totalBytes: 0,
+      blockSize: 0,
+      K: 0,
+      expectedCRC: '',
+      solvedBlocks: [],      // Array of Uint8Array or null
+      solveMethod: [],       // 'direct' | 'peeled' | null
+      solvedCount: 0,
+      dropletsReceived: 0,
+      equationBuffer: [],    // Array of { indices: Set<number>, payload: Uint8Array, seq: number }
+      isComplete: false,
+      reconstructedBytes: null,
+      simActive: false,
+      simLossRate: 0.15,
+      cameraActive: false,
+      videoStream: null,
+      scanAnimId: null
+    };
+
+    function resetRxDecoder() {
+      rxState.sessionId = null;
+      rxState.fileName = '';
+      rxState.totalBytes = 0;
+      rxState.blockSize = 0;
+      rxState.K = 0;
+      rxState.expectedCRC = '';
+      rxState.solvedBlocks = [];
+      rxState.solveMethod = [];
+      rxState.solvedCount = 0;
+      rxState.dropletsReceived = 0;
+      rxState.equationBuffer = [];
+      rxState.isComplete = false;
+      rxState.reconstructedBytes = null;
+
+      document.getElementById('rx-file-title').textContent = '等待鎖定自描述幀表頭 (Waiting for 22-Byte Header)...';
+      document.getElementById('rx-verify-badge').textContent = 'SCANNING // 等待訊號';
+      document.getElementById('rx-verify-badge').className = 'px-2.5 py-1 rounded font-mono text-xs bg-slate-800 text-slate-400 border border-slate-700';
+      document.getElementById('rx-progress-text').textContent = '0 / 0 Blocks (0%)';
+      document.getElementById('rx-progress-bar').style.width = '0%';
+      document.getElementById('rx-stat-droplets').textContent = '0 滴';
+      document.getElementById('rx-stat-solved').textContent = '0 / 0';
+      document.getElementById('rx-stat-buffered').textContent = '0 條方程';
+      document.getElementById('rx-stat-overhead').textContent = '0.00x';
+      document.getElementById('rx-result-panel').classList.add('hidden');
+      document.getElementById('rx-peel-log').innerHTML = '<div class="text-slate-500">[SYSTEM] Decoder reset. Listening for FO2 self-describing optical frames...</div>';
+      document.getElementById('rx-block-grid').innerHTML = '<div class="col-span-full text-center font-mono text-xs text-slate-600 py-4">等待接收噴泉碼水滴...</div>';
+    }
+
+    function appendRxLog(msg, colorClass = 'text-slate-300') {
+      const log = document.getElementById('rx-peel-log');
+      if (!log) return;
+      const line = document.createElement('div');
+      line.className = colorClass;
+      line.textContent = msg;
+      log.appendChild(line);
+      log.scrollTop = log.scrollHeight;
+    }
+
+    function renderRxBlockGrid() {
+      const grid = document.getElementById('rx-block-grid');
+      if (!grid || rxState.K === 0) return;
+      grid.innerHTML = '';
+      for (let i = 0; i < rxState.K; i++) {
+        const method = rxState.solveMethod[i];
+        const cell = document.createElement('div');
+        let style = 'bg-slate-900 text-slate-600 border-slate-800';
+        if (method === 'direct') {
+          style = 'bg-ferro-cyan text-slate-950 font-bold border-cyan-200 shadow-[0_0_10px_rgba(0,240,255,0.4)]';
+        } else if (method === 'peeled') {
+          style = 'bg-ferro-amber text-slate-950 font-bold border-amber-200 shadow-[0_0_10px_rgba(245,158,11,0.4)]';
+        }
+        cell.className = `h-7 rounded flex items-center justify-center font-mono text-[10px] border transition-all duration-200 ${style}`;
+        cell.textContent = `B${i}`;
+        grid.appendChild(cell);
+      }
+    }
+
+    /**
+     * Core LT Fountain Peeling Decoder (Iterative Belief Propagation)
+     */
+    function ingestOpticalFrame(wireString) {
+      if (!wireString || !wireString.startsWith('FO2|')) return;
+      const parts = wireString.split('|');
+      if (parts.length < 9) return;
+
+      const sessionId = parseInt(parts[1], 10) >>> 0;
+      const seq = parseInt(parts[2], 10);
+      const totalBytes = parseInt(parts[3], 10);
+      const blockSize = parseInt(parts[4], 10);
+      const K = parseInt(parts[5], 10);
+      const crcHex = parts[6];
+      const fileName = decodeURIComponent(parts[7]);
+      const xorPayload = base64ToUint8(parts[8]);
+
+      // Initialize or switch session automatically (Zero-handshake self-describing header!)
+      if (rxState.sessionId !== sessionId) {
+        resetRxDecoder();
+        rxState.sessionId = sessionId;
+        rxState.fileName = fileName;
+        rxState.totalBytes = totalBytes;
+        rxState.blockSize = blockSize;
+        rxState.K = K;
+        rxState.expectedCRC = crcHex.toUpperCase();
+        rxState.solvedBlocks = new Array(K).fill(null);
+        rxState.solveMethod = new Array(K).fill(null);
+
+        document.getElementById('rx-file-title').textContent = `${fileName} (${totalBytes} Bytes · K=${K} 區塊)`;
+        document.getElementById('rx-verify-badge').textContent = 'RECEIVING // 噴泉接收中';
+        document.getElementById('rx-verify-badge').className = 'px-2.5 py-1 rounded font-mono text-xs bg-ferro-cyan/15 text-ferro-cyan border border-ferro-cyan/40';
+        appendRxLog(`[HEADER LOCKED] Session 0x${sessionId.toString(16).toUpperCase()} · File: ${fileName} (K=${K} blocks)`, 'text-ferro-cyan');
+        renderRxBlockGrid();
+      }
+
+      if (rxState.isComplete) return;
+
+      rxState.dropletsReceived++;
+
+      // Reconstruct the exact block indices mixed in this droplet using SplitMix32
+      const recipe = getFountainRecipe(sessionId, seq, K);
+      const unknownIndices = new Set();
+      const reducedPayload = new Uint8Array(xorPayload);
+
+      // Step 1: Substitute any already-known blocks via XOR
+      for (const idx of recipe.indices) {
+        if (rxState.solvedBlocks[idx] !== null) {
+          const known = rxState.solvedBlocks[idx];
+          for (let b = 0; b < blockSize; b++) {
+            reducedPayload[b] ^= known[b];
+          }
+        } else {
+          unknownIndices.add(idx);
+        }
+      }
+
+      // If all blocks in this droplet are already known, it's redundant
+      if (unknownIndices.size === 0) {
+        updateRxTelemetryHUD();
+        return;
+      }
+
+      // If degree reduced to 1, solve immediately and trigger Peeling Cascade!
+      if (unknownIndices.size === 1) {
+        const solvedIdx = unknownIndices.values().next().value;
+        const wasOriginallyDegreeOne = (recipe.degree === 1);
+        solveBlockAndPeel(solvedIdx, reducedPayload, wasOriginallyDegreeOne ? 'direct' : 'peeled', seq);
+      } else {
+        // Degree > 1: store equation in graph buffer waiting to be peeled later
+        rxState.equationBuffer.push({
+          indices: unknownIndices,
+          payload: reducedPayload,
+          seq
+        });
+        appendRxLog(`[DROPLET #${seq}] Buffered XOR Eq: ${Array.from(unknownIndices).map(i => 'B' + i).join(' ⊕ ')}`, 'text-slate-400');
+      }
+
+      updateRxTelemetryHUD();
+    }
+
+    function solveBlockAndPeel(startIdx, startPayload, startMethod, seq) {
+      // Queue of newly solved blocks to propagate through buffered equations
+      const rippleQueue = [{ idx: startIdx, payload: startPayload, method: startMethod, seq }];
+
+      while (rippleQueue.length > 0) {
+        const current = rippleQueue.shift();
+        if (rxState.solvedBlocks[current.idx] !== null) continue;
+
+        rxState.solvedBlocks[current.idx] = current.payload;
+        rxState.solveMethod[current.idx] = current.method;
+        rxState.solvedCount++;
+
+        if (current.method === 'direct') {
+          appendRxLog(`[SOLVED B${current.idx}] Direct degree-1 droplet (#${current.seq})`, 'text-ferro-cyan');
+        } else {
+          appendRxLog(`[PEELED B${current.idx}] Recovered via XOR Graph Peeling!`, 'text-ferro-amber font-semibold');
+        }
+
+        // Propagate newly solved block into all buffered equations
+        const remainingBuffer = [];
+        for (const eq of rxState.equationBuffer) {
+          if (eq.indices.has(current.idx)) {
+            eq.indices.delete(current.idx);
+            for (let b = 0; b < rxState.blockSize; b++) {
+              eq.payload[b] ^= current.payload[b];
+            }
+          }
+
+          if (eq.indices.size === 1) {
+            const peeledIdx = eq.indices.values().next().value;
+            rippleQueue.push({
+              idx: peeledIdx,
+              payload: eq.payload,
+              method: 'peeled',
+              seq: eq.seq
+            });
+          } else if (eq.indices.size > 1) {
+            remainingBuffer.push(eq);
+          }
+        }
+        rxState.equationBuffer = remainingBuffer;
+      }
+
+      renderRxBlockGrid();
+
+      // Check if all K blocks are solved!
+      if (rxState.solvedCount === rxState.K && !rxState.isComplete) {
+        finalizeRxFileReconstruction();
+      }
+    }
+
+    function updateRxTelemetryHUD() {
+      const K = rxState.K || 1;
+      const pct = Math.min(100, Math.round((rxState.solvedCount / K) * 100));
+      document.getElementById('rx-progress-text').textContent = `${rxState.solvedCount} / ${rxState.K} Blocks (${pct}%)`;
+      document.getElementById('rx-progress-bar').style.width = `${pct}%`;
+      document.getElementById('rx-stat-droplets').textContent = `${rxState.dropletsReceived} 滴`;
+      document.getElementById('rx-stat-solved').textContent = `${rxState.solvedCount} / ${rxState.K}`;
+      document.getElementById('rx-stat-buffered').textContent = `${rxState.equationBuffer.length} 條方程`;
+      const overhead = rxState.K > 0 ? (rxState.dropletsReceived / rxState.K).toFixed(2) : '0.00';
+      document.getElementById('rx-stat-overhead').textContent = `${overhead}x`;
+    }
+
+    function finalizeRxFileReconstruction() {
+      rxState.isComplete = true;
+      const fullBuffer = new Uint8Array(rxState.K * rxState.blockSize);
+      for (let i = 0; i < rxState.K; i++) {
+        fullBuffer.set(rxState.solvedBlocks[i], i * rxState.blockSize);
+      }
+
+      const trimmed = fullBuffer.subarray(0, rxState.totalBytes);
+      rxState.reconstructedBytes = trimmed;
+
+      const actualCRC = crc32Bytes(trimmed).toString(16).toUpperCase();
+      const verified = (actualCRC === rxState.expectedCRC);
+
+      const badge = document.getElementById('rx-verify-badge');
+      if (verified) {
+        badge.textContent = `VERIFIED // CRC32 0x${actualCRC}`;
+        badge.className = 'px-2.5 py-1 rounded font-mono text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-400/50 font-bold';
+        appendRxLog(`[INTEGRITY PASS] All ${rxState.K} blocks assembled. CRC32 (0x${actualCRC}) matches sender 100%!`, 'text-emerald-400 font-bold');
+      }
+
+      // Show Result Preview
+      const panel = document.getElementById('rx-result-panel');
+      const preview = document.getElementById('rx-result-preview');
+      panel.classList.remove('hidden');
+      preview.textContent = decodeUTF8(trimmed);
+    }
+
+    /*************************************************************************
+     * 4. LOOPBACK OPTICAL SIMULATOR & WEBRTC CAMERA SCANNER
+     *************************************************************************/
+    function feedLoopbackFrame(wireString) {
+      const scanCanvas = document.getElementById('rx-scan-canvas');
+      const toast = document.getElementById('rx-drop-toast');
+
+      // Mirror the sender's QR onto receiver's optical sensor canvas
+      drawQrToCanvas(wireString, scanCanvas, false);
+
+      // Simulate random optical glare / hand-shake frame drop
+      if (Math.random() < rxState.simLossRate) {
+        toast.textContent = '⚠ 模擬反光漏掃一幀 (噴泉碼自動略過無影響)';
+        toast.className = 'self-center px-2.5 py-1 rounded bg-rose-950/90 border border-rose-500/50 text-rose-300';
+        return;
+      }
+
+      toast.textContent = `✓ 成功捕捉水滴 Seq #${txState.seq - 1}`;
+      toast.className = 'self-center px-2.5 py-1 rounded bg-emerald-950/90 border border-emerald-500/50 text-emerald-300';
+      document.getElementById('rx-fps-counter').textContent = `${txState.fps} FPS LOCK`;
+
+      ingestOpticalFrame(wireString);
+    }
+
+    function toggleLoopbackSimulation() {
+      if (rxState.cameraActive) stopCameraScanner();
+      rxState.simActive = !rxState.simActive;
+      const btn = document.getElementById('rx-sim-btn');
+      const dot = document.getElementById('rx-status-dot');
+      const label = document.getElementById('rx-source-label');
+
+      if (rxState.simActive) {
+        resetRxDecoder();
+        rxState.simActive = true;
+        if (!txState.isStreaming) toggleTxStream();
+        btn.textContent = '⏹ 停止光學迴路模擬 (Stop Simulation)';
+        btn.className = 'px-4 py-2 rounded-lg bg-rose-500 hover:bg-rose-400 text-slate-950 font-mono font-bold text-xs transition-all';
+        dot.className = 'w-2 h-2 rounded-full bg-ferro-amber animate-ping';
+        label.textContent = 'OPTICAL LOOPBACK ACTIVE // 模擬接收發射端訊號中';
+      } else {
+        btn.textContent = '⚡ 啟動單機光學迴路模擬 (Simulate Optical Link)';
+        btn.className = 'px-4 py-2 rounded-lg bg-ferro-amber hover:bg-amber-400 text-slate-950 font-mono font-bold text-xs transition-all shadow-[0_0_20px_rgba(245,158,11,0.3)]';
+        dot.className = 'w-2 h-2 rounded-full bg-slate-500';
+        label.textContent = 'OPTICAL SENSOR STANDBY';
+      }
+    }
+
+    function updateSimLossRate() {
+      const val = parseInt(document.getElementById('rx-loss-slider').value, 10);
+      rxState.simLossRate = val / 100;
+      document.getElementById('rx-loss-label').textContent = `${val}% 漏幀`;
+      document.getElementById('rx-glare-indicator').textContent = `GLARE LOSS: ${val}% SIM`;
+    }
+
+    async function toggleCameraScanner() {
+      if (rxState.cameraActive) {
+        stopCameraScanner();
+        return;
+      }
+      if (rxState.simActive) toggleLoopbackSimulation();
+
+      const video = document.getElementById('rx-video');
+      const scanCanvas = document.getElementById('rx-scan-canvas');
+      const btn = document.getElementById('rx-cam-btn');
+      const toast = document.getElementById('rx-drop-toast');
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        rxState.videoStream = stream;
+        rxState.cameraActive = true;
+        video.srcObject = stream;
+        video.classList.remove('hidden');
+        scanCanvas.classList.add('hidden');
+        await video.play();
+
+        btn.textContent = '⏹ 關閉實體相機';
+        document.getElementById('rx-source-label').textContent = 'WEBRTC CAMERA ACTIVE // 實時光學掃描中';
+        document.getElementById('rx-status-dot').className = 'w-2 h-2 rounded-full bg-ferro-cyan animate-ping';
+        toast.textContent = '請將鏡頭對準另一台裝置的發射端 QR 畫面...';
+
+        const offCanvas = document.createElement('canvas');
+        const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+
+        function scanTick() {
+          if (!rxState.cameraActive) return;
+          if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            offCanvas.width = video.videoWidth;
+            offCanvas.height = video.videoHeight;
+            offCtx.drawImage(video, 0, 0, offCanvas.width, offCanvas.height);
+            const imgData = offCtx.getImageData(0, 0, offCanvas.width, offCanvas.height);
+            if (typeof jsQR !== 'undefined') {
+              const code = jsQR(imgData.data, imgData.width, imgData.height, {
+                inversionAttempts: 'attemptBoth'
+              });
+              if (code && code.data && code.data.startsWith('FO2|')) {
+                toast.textContent = '✓ 鎖定光學噴泉碼串流！';
+                ingestOpticalFrame(code.data);
+              }
+            }
+          }
+          rxState.scanAnimId = requestAnimationFrame(scanTick);
+        }
+        scanTick();
+      } catch (err) {
+        toast.textContent = '無法存取相機權限，建議使用上方「單機光學迴路模擬」測試！';
+        toast.className = 'self-center px-2.5 py-1 rounded bg-amber-950/90 border border-amber-500/50 text-amber-300';
+      }
+    }
+
+    function stopCameraScanner() {
+      rxState.cameraActive = false;
+      if (rxState.scanAnimId) cancelAnimationFrame(rxState.scanAnimId);
+      if (rxState.videoStream) {
+        rxState.videoStream.getTracks().forEach(t => t.stop());
+        rxState.videoStream = null;
+      }
+      document.getElementById('rx-video').classList.add('hidden');
+      document.getElementById('rx-scan-canvas').classList.remove('hidden');
+      document.getElementById('rx-cam-btn').textContent = '📷 開啟實體相機鏡頭掃描';
+    }
+
+    function copyReconstructedText() {
+      const text = document.getElementById('rx-result-preview').textContent;
+      const temp = document.createElement('textarea');
+      temp.value = text;
+      document.body.appendChild(temp);
+      temp.select();
+      document.execCommand('copy');
+      document.body.removeChild(temp);
+      appendRxLog('[CLIPBOARD] 還原內容已複製到剪貼簿。', 'text-ferro-cyan');
+    }
+
+    function downloadReconstructedFile() {
+      if (!rxState.reconstructedBytes) return;
+      const blob = new Blob([rxState.reconstructedBytes], { type: 'application/octet-stream' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = rxState.fileName || 'ferro-optic-received.dat';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    /*************************************************************************
+     * 5. NAVIGATION, INSTANT DEMO, SHARE DIALOG & BILINGUAL I18N
+     *************************************************************************/
+    function switchMode(mode) {
+      ['home', 'send', 'receive'].forEach(m => {
+        const view = document.getElementById(`view-${m}`);
+        const btn = document.getElementById(`nav-${m}`);
+        if (m === mode) {
+          view.classList.remove('hidden');
+          btn.className = 'mode-btn px-3 py-1.5 rounded-md text-xs sm:text-sm font-mono font-medium transition-all bg-ferro-cyan text-slate-950 font-semibold shadow-[0_0_15px_rgba(0,240,255,0.3)]';
+        } else {
+          view.classList.add('hidden');
+          btn.className = 'mode-btn px-3 py-1.5 rounded-md text-xs sm:text-sm font-mono font-medium text-slate-300 hover:text-white transition-all';
+        }
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function startInstantDemo() {
+      switchMode('receive');
+      if (!rxState.simActive) {
+        toggleLoopbackSimulation();
+      } else {
+        resetRxDecoder();
+        rxState.simActive = true;
+      }
+    }
+
+    function sendToLoopbackSimulator() {
+      startInstantDemo();
+    }
+
+    function openShareDialog() {
+      const dialog = document.getElementById('share-dialog');
+      const urlInput = document.getElementById('share-url');
+      urlInput.value = window.location.href;
+      drawQrToCanvas(window.location.href, document.getElementById('share-qr'), false);
+      if (typeof dialog.showModal === 'function') {
+        dialog.showModal();
+      }
+    }
+
+    function closeShareDialog() {
+      const dialog = document.getElementById('share-dialog');
+      if (typeof dialog.close === 'function') {
+        dialog.close();
+      }
+    }
+
+    function copyShareUrl() {
+      const input = document.getElementById('share-url');
+      input.select();
+      document.execCommand('copy');
+      const btn = document.getElementById('share-copy');
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+    }
+
+    // Bilingual Dictionary (ZH-Hant / EN)
+    let currentLang = 'zh';
+    const i18nDict = {
+      zh: {
+        brand_sub: 'OPTICAL FOUNTAIN DATA LINK // 光學流體傳輸',
+        nav_home: 'HOME // 主頁',
+        nav_send: 'SEND // 發射端',
+        nav_receive: 'RECEIVE // 接收端',
+        banner_msg: '靈感源自 Decimen.app 與 Project Ferrofy 磁流體互動系統 — 支援純光學 LT 噴泉碼無網傳輸。',
+        banner_demo: '⚡ 一鍵體驗光學噴泉碼編解碼 →',
+        hero_title_1: 'Transfer files',
+        hero_title_2: 'with ferro-light.',
+        hero_copy: '僅需透過「發射端螢幕」與「接收端相機鏡頭」，即可在兩台完全斷網（Air-Gapped）的裝置間傳送檔案或文字。採用無速率 LT 噴泉碼動態 QR 矩陣，無需配對、無需伺服器、無懼反光掉幀。',
+        send_kicker: 'THIS SCREEN TRANSMITS // 此螢幕發射訊號',
+        send_card_title: 'Send a file or text',
+        send_card_desc: '支援任意檔案或純文字片段。系統會將資料切分為 K 個原始區塊，透過 SplitMix32 與魯棒孤子分佈源源不絕地產生噴泉碼修復幀 (Repair Droplets)，並以高幀率 QR 光學矩陣輪播。',
+        btn_go_send: '進入發射端 (SEND)',
+        recv_kicker: 'THIS CAMERA RECEIVES // 此鏡頭接收訊號',
+        recv_card_title: 'Point and receive',
+        recv_card_desc: '將手機或電腦鏡頭對準發射端螢幕即可隨時加入接收（無需握手配對）。內建「單機光學迴路模擬器」，即使只有一台電腦也能即時觀測 LT 剝離解碼器 (Peeling Decoder) 矩陣解聯立方程的過程。',
+        btn_go_recv: '進入接收端 (RECEIVE)',
+        arch_title: '光學噴泉碼四大核心運作機制 (Interactive Spec)',
+        p1_title: '無速率噴泉碼 (XOR 水滴)',
+        p1_desc: '螢幕到鏡頭是單向通道。發送端將檔案切為 K 塊並隨機 XOR 混成無限「水滴」。接收端不論順序、不怕反光漏掃，只要接滿約 1.15×K 滴水即可透過圖論剝離演算法 100% 還原。',
+        p2_title: '無需握手的自描述幀',
+        p2_desc: '每個 QR Code 均攜帶 22 Bytes 表頭（Session ID、序號 Seq、檔案總長度、區塊大小）。接收端可在任意時刻舉起手機對準螢幕，中途加入也能無縫重組。',
+        p3_title: '雙端偽隨機數配方同步',
+        p3_desc: '為了節省 QR 容量，水滴內不記錄「混合了哪幾個區塊」，而是由收發兩端共用確定性 SplitMix32 演算法，僅憑 Frame Seq 序號即可同步推算出完全一致的 XOR 索引組合。',
+        p4_title: '容器封裝與雜湊校驗',
+        p4_desc: '自動將檔名、MIME 類型與二進位負載封裝為 DCF2 結構，並在接收端拼湊完成後執行完整 SHA-256 與 CRC32 校驗，確保每一個位元組零誤差。',
+        share_card_heading: '分享此無網傳輸終端',
+        share_card_sub: '讓另一台設備掃描網址 QR Code 開啟接收端。',
+        btn_share_app: 'Share FERRO-OPTIC // 分享應用',
+        ferro_card_title: 'Powered by PROJECT FERROFY // 實體磁性流體互動系統美學',
+        ferro_card_desc: '本系統結合 Decimen 光學噴泉碼協議與 Project Ferrofy 的磁流體科技視覺語言。開源、零廣告、純前端本地運算。',
+        privacy_note: '[AIR-GAP SECURITY NOTICE] 兩台設備之間不需要任何網路路徑，所有位元組皆化為光子在空氣中傳播。資料流未經密碼學加密，因此任何能夠清楚拍到發射端螢幕的鏡頭皆可讀取內容。',
+        tx_heading: '發射端：噴泉碼光學編碼器',
+        rx_heading: '接收端：光學鏡頭掃描與噴泉解碼器'
+      },
+      en: {
+        brand_sub: 'OPTICAL FOUNTAIN DATA LINK // PROJECT FERROFY',
+        nav_home: 'HOME',
+        nav_send: 'SEND',
+        nav_receive: 'RECEIVE',
+        banner_msg: 'Inspired by Decimen.app & Project Ferrofy — Air-gapped optical file transfer via LT Fountain Codes.',
+        banner_demo: '⚡ Run Live Fountain Loopback Demo →',
+        hero_title_1: 'Transfer files',
+        hero_title_2: 'with ferro-light.',
+        hero_copy: 'Send a file or a block of text from one screen to another device\'s camera. No account, pairing, cloud storage, or network path between devices.',
+        send_kicker: 'THIS SCREEN TRANSMITS',
+        send_card_title: 'Send a file or text',
+        send_card_desc: 'Any file or pasted text snippet. Sliced into K source blocks and broadcast as an endless stream of XOR fountain-coded repair droplets.',
+        btn_go_send: 'Open Transmitter (SEND)',
+        recv_kicker: 'THIS CAMERA RECEIVES',
+        recv_card_title: 'Point and receive',
+        recv_card_desc: 'Point your camera at the sender\'s screen to receive the file, or run the built-in Loopback Optical Simulator to watch the LT Peeling Decoder solve blocks.',
+        btn_go_recv: 'Open Receiver (RECEIVE)',
+        arch_title: '4 Pillars of Optical Fountain Transfer',
+        p1_title: 'Rateless LT Fountain Codes',
+        p1_desc: 'Screen-to-camera is strictly one-way. Source blocks are XOR-mixed into endless droplets. Dropped frames from glare only cost a fraction of a second, never file integrity.',
+        p2_title: '22-Byte Self-Describing Frame',
+        p2_desc: 'Every QR code carries session metadata, total size, and block length. The receiver can start scanning mid-stream with zero prior handshake.',
+        p3_title: 'SplitMix32 PRNG Sync',
+        p3_desc: 'Both sides run an identical SplitMix32 generator seeded by the frame sequence number to derive which source blocks were XORed together.',
+        p4_title: 'DCF2 Container & Checksum',
+        p4_desc: 'Wraps filename and payload bytes into a verified container. Full CRC32 integrity verification guarantees zero corrupted files.',
+        share_card_heading: 'Share Optical Terminal',
+        share_card_sub: 'Scan with another device\'s camera to open the receiver.',
+        btn_share_app: 'Share FERRO-OPTIC',
+        ferro_card_title: 'Powered by PROJECT FERROFY Aesthetics',
+        ferro_card_desc: 'Merging Decimen\'s optical fountain protocol with the cybernetic magnetic-fluid design system of Project Ferrofy.',
+        privacy_note: 'A network path is not required between the devices. The bytes travel as light. Files are not encrypted, so anything on the sending screen is readable by any camera pointed at it.',
+        tx_heading: 'Transmitter: LT Fountain Optical Encoder',
+        rx_heading: 'Receiver: Camera Scanner & Peeling Solver'
+      }
+    };
+
+    function setLanguage(lang) {
+      currentLang = lang;
+      const dict = i18nDict[lang] || i18nDict.zh;
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key]) el.textContent = dict[key];
+      });
+      document.getElementById('footer-lang-select').value = lang;
+    }
+
+    function toggleLanguage() {
+      setLanguage(currentLang === 'zh' ? 'en' : 'zh');
+    }
+
+    /*************************************************************************
+     * 6. PROJECT FERROFY INTERACTIVE MAGNETIC FERROFLUID BACKGROUND CANVAS
+     *************************************************************************/
+    function initFerrofluidCanvas() {
+      const canvas = document.getElementById('ferro-bg-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let width = canvas.width = window.innerWidth;
+      let height = canvas.height = window.innerHeight;
+
+      const mouse = { x: width * 0.5, y: height * 0.35, active: false };
+      window.addEventListener('mousemove', e => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+        mouse.active = true;
+      });
+
+      window.addEventListener('resize', () => {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+      });
+
+      const particles = Array.from({ length: 42 }, (_, i) => ({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        vx: (Math.random() - 0.5) * 0.45,
+        vy: (Math.random() - 0.5) * 0.45,
+        r: 1.5 + Math.random() * 2.2
+      }));
+
+      function animateFerro() {
+        ctx.clearRect(0, 0, width, height);
+
+        for (let i = 0; i < particles.length; i++) {
+          const p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+
+          if (p.x < 0 || p.x > width) p.vx *= -1;
+          if (p.y < 0 || p.y > height) p.vy *= -1;
+
+          // Magnetic attraction toward cursor (Ferrofluid spike feel)
+          if (mouse.active) {
+            const dx = mouse.x - p.x;
+            const dy = mouse.y - p.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist < 220 && dist > 10) {
+              p.x += (dx / dist) * 0.55;
+              p.y += (dy / dist) * 0.55;
+            }
+          }
+
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(0, 240, 255, 0.45)';
+          ctx.fill();
+
+          for (let j = i + 1; j < particles.length; j++) {
+            const p2 = particles[j];
+            const d = Math.hypot(p.x - p2.x, p.y - p2.y);
+            if (d < 135) {
+              ctx.beginPath();
+              ctx.moveTo(p.x, p.y);
+              ctx.lineTo(p2.x, p2.y);
+              ctx.strokeStyle = `rgba(0, 240, 255, ${(1 - d / 135) * 0.16})`;
+              ctx.lineWidth = 1;
+              ctx.stroke();
+            }
+          }
+        }
+        requestAnimationFrame(animateFerro);
+      }
+      animateFerro();
+    }
+
+    // Initialize everything on window load
+    window.addEventListener('load', () => {
+      initFerrofluidCanvas();
+      handleTextPayloadChange();
+      startTxLoop();
+    });
+  </script>
+</body>
+</html>
